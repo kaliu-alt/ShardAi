@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FragmentosIA — Análise e Reconstrução</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- model-viewer (visualizador GLB simples) -->
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>FragmentosIA</h1>
+    <p>Envie foto(s) do artefato quebrado. Use "Analisar" para obter material/idade. Use "Reconstruir 3D" para enviar várias fotos ao serviço 3D (se configurado).</p>
+
+    <section class="card">
+      <h2>Análise rápida</h2>
+      <input type="file" id="singleFile" accept="image/*">
+      <button id="btnAnalyze">Analisar (IA)</button>
+      <pre id="analysisResult"></pre>
+    </section>
+
+    <section class="card">
+      <h2>Reconstrução 3D (várias fotos)</h2>
+      <input type="file" id="multiFiles" accept="image/*" multiple>
+      <button id="btnReconstruct">Reconstruir 3D</button>
+      <div id="reconStatus"></div>
+      <div id="viewerArea" style="margin-top:12px">
+        <model-viewer id="modelViewer" src="" alt="Modelo 3D" camera-controls auto-rotate style="width:100%;height:400px;display:none"></model-viewer>
+      </div>
+    </section>
+
+    <footer class="small">Feito pra testar. Atenção a limites de API e custo.</footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
