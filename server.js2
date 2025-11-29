@@ -1,0 +1,127 @@
+// server.js
+import express from "express";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
+import dotenv from "dotenv";
+import cors from "cors";
+import OpenAI from "openai";
+import fetch from "node-fetch";
+
+dotenv.config();
+const PORT = process.env.PORT || 3000;
+const app = express();
+app.use(cors());
+app.use(express.static(path.join(process.cwd(), "public")));
+
+const upload = multer({ dest: "uploads/" });
+
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Rota de análise (envia imagem para OpenAI e recebe JSON com material/idade/origem)
+app.post("/api/analyze", upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "Nenhuma imagem enviada" });
+
+    const filePath = path.resolve(req.file.path);
+    const data = fs.readFileSync(filePath);
+    const b64 = data.toString("base64");
+    fs.unlinkSync(filePath);
+
+    // Prompt pedindo JSON estrito
+    const systemPrompt = `Você é um assistente especialista em arqueologia.
+Responda APENAS com JSON válido (apenas o objeto JSON, sem comentários) com as chaves:
+material, idade_estimativa, origem_provavel, confianca (0-1), comentario_curto.
+Baseie-se na imagem enviada. Se não for possível estimar, coloque null e explique no comentario_curto.`;
+
+    // Chamada à Responses API (multimodal). Ajuste model conforme sua conta.
+    const resp = await client.responses.create({
+      model: "gpt-4o-mini",
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_text", text: systemPrompt },
+            { type: "input_image", image_base64: b64 }
+          ]
+        }
+      ]
+    });
+
+    // Extrai texto da resposta (tenta encontrar JSON)
+    let text = "";
+    if (resp.output_text) {
+      text = resp.output_text;
+    } else if (resp.output && resp.output.length) {
+      // tenta compor texto
+      text = resp.output.map(o => {
+        if (o.content) return o.content.map(c=>c.text || "").join("");
+        return "";
+      }).join("\n");
+    } else {
+      text = JSON.stringify(resp);
+    }
+
+    // tenta extrair o primeiro bloco JSON
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) {
+      return res.json({ raw: text });
+    }
+    let parsed = null;
+    try { parsed = JSON.parse(m[0]); } catch(e) { return res.json({ raw: text }); }
+
+    return res.json({ result: parsed });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message || "Erro no servidor" });
+  }
+});
+
+// Rota opcional de "reconstrução 3D": placeholder para integrar serviço 3D
+// Recebe múltiplas imagens (campo 'photos'), empacota e envia para SERVICE3D_URL se configurado.
+// Retorna URL do GLB gerado (se disponível).
+app.post("/api/reconstruct", upload.array("photos", 100), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) return res.status(400).json({ error: "Nenhuma foto enviada" });
+
+    if (!process.env.SERVICE3D_URL) {
+      // fallback: apenas informe que recebemos as fotos e que é preciso integrar serviço 3D
+      // limpa arquivos temporários
+      for (const f of req.files) fs.unlinkSync(f.path);
+      return res.status(501).json({ error: "Serviço 3D não configurado. Configure SERVICE3D_URL no .env" });
+    }
+
+    // Se você tem um serviço 3D, aqui faria o upload. Exemplo genérico:
+    const zip = new (await import('jszip')).default();
+    const folder = zip.folder("photos");
+    for (let i=0;i<req.files.length;i++){
+      folder.file(req.files[i].originalname || req.files[i].filename, fs.readFileSync(req.files[i].path));
+    }
+    const content = await zip.generateAsync({ type: "nodebuffer" });
+
+    // envia para SERVICE3D_URL (exemplo)
+    const resp = await fetch(process.env.SERVICE3D_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.SERVICE3D_KEY || ""}`,
+        "Content-Type": "application/octet-stream"
+      },
+      body: content
+    });
+
+    const json = await resp.json();
+
+    // limpa arquivos locais
+    for (const f of req.files) fs.unlinkSync(f.path);
+
+    // supondo que o retorno seja { model_url: "https://..." }
+    return res.json(json);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(PORT, ()=> {
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
