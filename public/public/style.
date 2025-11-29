@@ -1,0 +1,6 @@
+body { font-family: Arial, sans-serif; background:#f6f8fb; color:#111; padding:18px; }
+.wrap { max-width:900px; margin:0 auto; }
+.card { background:#fff; padding:12px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.06); margin-top:12px; }
+button { padding:8px 12px; border-radius:6px; cursor:pointer; }
+pre { background:#eef2f7; padding:8px; border-radius:6px; white-space:pre-wrap; }
+.small { color:#666; font-size:13px; margin-top:10px; }
